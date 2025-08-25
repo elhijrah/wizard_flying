@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Flying Wizard - Game</title>
     <style>
+        /* CSS yang Diperbaiki di sini */
         * {
             margin: 0;
             padding: 0;
@@ -35,20 +36,12 @@
             background: #1a1a1a;
             display: block;
             touch-action: none;
-        }
-
-        /* Aspect ratio handling for canvas */
-        @media (min-aspect-ratio: 4/3) {
-            canvas {
-                height: 100vh;
-                width: calc(100vh * 4 / 3);
-            }
-        }
-        @media (max-aspect-ratio: 4/3) {
-            canvas {
-                width: 100vw;
-                height: calc(100vw * 3 / 4);
-            }
+            width: 100%;
+            height: 100%;
+            position: absolute; /* Tetapkan posisi absolut */
+            top: 0;
+            left: 0;
+            z-index: 1; /* Posisikan di bawah UI */
         }
 
         .ui-container {
@@ -87,7 +80,7 @@
         }
 
         .game-over-screen {
-            display: none;
+            display: none; /* Sembunyikan layar game over secara default */
         }
 
         h1 {
@@ -199,7 +192,7 @@
             <button id="restart-button">Play Again</button>
         </div>
 
-        <canvas id="game-canvas" width="800" height="600"></canvas>
+        <canvas id="game-canvas"></canvas>
     </div>
 
     <audio id="background-music" loop>
@@ -268,12 +261,12 @@
 
         backgroundImage.onload = () => {
             isBackgroundLoaded = true;
-            console.log("Image 'island.jpg' loaded successfully.");
+            console.log("Image 'island.png' loaded successfully.");
             if (isMageLoaded) animateStartScreen();
         };
 
         backgroundImage.onerror = () => {
-            console.error("Failed to load 'island.jpg'. Using a red-black gradient background.");
+            console.error("Failed to load 'island.png'. Using a red-black gradient background.");
             isBackgroundLoaded = false;
             if (isMageLoaded) animateStartScreen();
         };
@@ -471,6 +464,7 @@
 
             startScreen.style.display = 'none';
             gameOverScreen.style.display = 'none';
+            speedUpText.style.display = 'none'; // Sembunyikan saat memulai
 
             backgroundMusic.play().catch(e => console.log("Autoplay was prevented."));
 
@@ -556,20 +550,9 @@
         
         function resizeCanvas() {
             const container = document.querySelector('.game-container');
-            const containerWidth = container.clientWidth;
-            const containerHeight = container.clientHeight;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
             
-            const targetRatio = 4 / 3;
-            const windowRatio = containerWidth / containerHeight;
-            
-            if (windowRatio > targetRatio) {
-                canvas.height = containerHeight;
-                canvas.width = containerHeight * targetRatio;
-            } else {
-                canvas.width = containerWidth;
-                canvas.height = containerWidth / targetRatio;
-            }
-
             wizard.x = canvas.width / 4;
             wizard.y = canvas.height / 2;
         }
