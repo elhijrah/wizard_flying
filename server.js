@@ -2,11 +2,10 @@ const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
 const DiscordStrategy = require('passport-discord').Strategy;
-const axios = require('axios');
 const path = require('path');
 const { kv } = require('@vercel/kv');
+const axios = require('axios');
 
-// Pastikan .env sudah dimuat di proyek lokal Anda
 require('dotenv').config();
 
 const app = express();
@@ -83,10 +82,8 @@ app.get('/api/leaderboard', async (req, res) => {
 app.post('/api/leaderboard', async (req, res) => {
     const { userId, username, score } = req.body;
     try {
-        // Ambil skor lama jika ada
         const oldScore = await kv.zscore('leaderboard', userId);
         
-        // Simpan skor baru hanya jika lebih tinggi dari skor lama
         if (oldScore === null || score > oldScore) {
             await kv.zadd('leaderboard', {
                 score: score,
