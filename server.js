@@ -41,6 +41,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 app.use(express.json());
 
+// Serving static files from the 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/login', passport.authenticate('discord'));
@@ -79,16 +80,21 @@ app.get('/api/leaderboard', async (req, res) => {
     }
 });
 
+// Perbaikan di sini: Ambil userId dari sesi, bukan dari body
 app.post('/api/leaderboard', async (req, res) => {
-    const { userId, username, score } = req.body;
+    if (!req.isAuthenticated()) {
+        return res.status(401).send('Unauthorized');
+    }
+
+    const { score } = req.body;
+    const userId = req.user.id;
+    const username = req.user.username;
+
     try {
         const oldScore = await kv.zscore('leaderboard', userId);
         
         if (oldScore === null || score > oldScore) {
-            await kv.zadd('leaderboard', {
-                score: score,
-                member: userId
-            });
+            await kv.zadd('leaderboard', { score: score, member: userId });
             await kv.set(`user:${userId}`, { username: username });
         }
         
