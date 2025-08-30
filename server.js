@@ -41,7 +41,6 @@ app.use(passport.initialize());
 app.use(passport.session());
 app.use(express.json());
 
-// Serving static files from the 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/login', passport.authenticate('discord'));
@@ -80,10 +79,9 @@ app.get('/api/leaderboard', async (req, res) => {
     }
 });
 
-// Perbaikan di sini: Ambil userId dari sesi, bukan dari body
 app.post('/api/leaderboard', async (req, res) => {
     if (!req.isAuthenticated()) {
-        return res.status(401).send('Unauthorized');
+        return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const { score } = req.body;
@@ -93,15 +91,19 @@ app.post('/api/leaderboard', async (req, res) => {
     try {
         const oldScore = await kv.zscore('leaderboard', userId);
         
+        let message = 'Score not high enough to be submitted.';
         if (oldScore === null || score > oldScore) {
             await kv.zadd('leaderboard', { score: score, member: userId });
             await kv.set(`user:${userId}`, { username: username });
+            message = 'Score submitted successfully!';
         }
         
-        res.sendStatus(200);
+        // Kirim respons JSON
+        res.status(200).json({ success: true, message: message });
+
     } catch (error) {
         console.error('Failed to save score:', error);
-        res.status(500).send('Internal Server Error');
+        res.status(500).json({ success: false, error: 'Internal Server Error' });
     }
 });
 
