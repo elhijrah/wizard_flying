@@ -3,7 +3,7 @@ const session = require('express-session');
 const passport = require('passport');
 const DiscordStrategy = require('passport-discord').Strategy;
 const axios = require('axios');
-const path = require('path'); // Menambahkan modul path
+const path = require('path');
 
 // Pastikan .env sudah dimuat di proyek lokal Anda
 // require('dotenv').config();
@@ -37,13 +37,17 @@ passport.use(new DiscordStrategy({
 }));
 
 app.use(session({
-    secret: 'mysecret', // Anda bisa ganti ini dengan string yang lebih acak
+    secret: 'mysecret',
     resave: false,
     saveUninitialized: false
 }));
 app.use(passport.initialize());
 app.use(passport.session());
 app.use(express.json());
+
+// BARIS PENTING YANG DITAMBAHKAN
+// Ini memberitahu Express untuk menyajikan semua file statis dari folder proyek.
+app.use(express.static(__dirname));
 
 // Rute untuk login Discord
 app.get('/login', passport.authenticate('discord'));
@@ -66,7 +70,6 @@ app.get('/api/user', (req, res) => {
 
 // Rute untuk mendapatkan dan menyimpan skor
 app.get('/api/leaderboard', (req, res) => {
-    // Sort leaderboard by score (descending) and take top 10
     const sortedLeaderboard = leaderboard.sort((a, b) => b.score - a.score).slice(0, 10);
     res.json(sortedLeaderboard);
 });
@@ -74,16 +77,13 @@ app.get('/api/leaderboard', (req, res) => {
 app.post('/api/leaderboard', (req, res) => {
     const { userId, username, score } = req.body;
     
-    // Check if the user is already on the leaderboard
     const existingEntry = leaderboard.find(entry => entry.userId === userId);
     
     if (existingEntry) {
-        // Update if new score is higher
         if (score > existingEntry.score) {
             existingEntry.score = score;
         }
     } else {
-        // Add new entry
         leaderboard.push({ userId, username, score });
     }
     
