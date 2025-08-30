@@ -57,10 +57,8 @@
             border-radius: 20px;
             backdrop-filter: blur(5px);
         }
-        .screen-overlay, .leaderboard-container {
-            display: none;
-        }
         .screen-overlay {
+            display: none;
             position: absolute;
             top: 0;
             left: 0;
@@ -88,6 +86,7 @@
             backdrop-filter: blur(5px);
             max-height: 80vh;
             overflow-y: auto;
+            display: none;
         }
         .leaderboard-container h3 {
             text-align: center;
@@ -186,6 +185,33 @@
                 transform: translate(-50%, -50%) scale(1.5);
             }
         }
+        /* New and improved leaderboard styling */
+        .leaderboard-item {
+            display: grid;
+            grid-template-columns: 20px 1fr 50px;
+            gap: 10px;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 10px 0;
+        }
+        .leaderboard-rank {
+            font-weight: bold;
+            color: #ffcc00;
+        }
+        .leaderboard-name {
+            font-weight: normal;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .leaderboard-score {
+            font-weight: bold;
+            text-align: right;
+            color: #fff;
+        }
+        .leaderboard-item:nth-child(1) .leaderboard-rank { color: gold; }
+        .leaderboard-item:nth-child(2) .leaderboard-rank { color: silver; }
+        .leaderboard-item:nth-child(3) .leaderboard-rank { color: #cd7f32; }
     </style>
 </head>
 <body>
@@ -484,12 +510,11 @@
             backgroundX = 0;
             wizard.y = canvas.height / 2;
             
-            // Sembunyikan semua layar overlay
+            // Sembunyikan semua layar overlay, biarkan leaderboard tetap terlihat
             loginScreen.style.display = 'none';
             startScreen.style.display = 'none';
             gameOverScreen.style.display = 'none';
-            leaderboardContainer.style.display = 'none';
-
+            
             backgroundMusic.play().catch(e => console.log("Autoplay was prevented."));
             gameLoop();
         }
@@ -506,17 +531,14 @@
             finalScoreElement.textContent = score;
             finalHighScoreElement.textContent = highScore;
 
-            // Submit skor baru, lalu perbarui leaderboard
             if (loggedInUser) {
                 submitScore().then(() => {
                     fetchAndDisplayLeaderboard();
                 });
             } else {
-                // Jika tidak login, tampilkan leaderboard tanpa submit skor
                 fetchAndDisplayLeaderboard();
             }
             
-            // Tampilkan layar game over
             gameOverScreen.style.display = 'flex';
         }
 
@@ -525,11 +547,10 @@
                 const response = await fetch('/api/user');
                 const data = await response.json();
                 
-                // Sembunyikan semua layar overlay terlebih dahulu
+                // Sembunyikan semua layar overlay
                 loginScreen.style.display = 'none';
                 startScreen.style.display = 'none';
                 gameOverScreen.style.display = 'none';
-                leaderboardContainer.style.display = 'none';
                 
                 if (data.loggedIn) {
                     loggedInUser = data.user;
@@ -582,15 +603,17 @@
                 
                 leaderboardData.forEach((entry, index) => {
                     const li = document.createElement('li');
-                    li.innerHTML = `<span><b>${index + 1}.</b> ${entry.username}</span> <span><b>${entry.score}</b></span>`;
+                    li.className = 'leaderboard-item';
+                    li.innerHTML = `
+                        <span class="leaderboard-rank">${index + 1}</span>
+                        <span class="leaderboard-name">${entry.username}</span>
+                        <span class="leaderboard-score">${entry.score}</span>
+                    `;
                     leaderboardList.appendChild(li);
                 });
-                
                 leaderboardContainer.style.display = 'block';
-
             } catch (error) {
                 console.error('Failed to fetch leaderboard:', error);
-                leaderboardContainer.style.display = 'none';
             }
         }
 
