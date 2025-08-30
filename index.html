@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Flying Wizard - Game</title>
     <style>
-        /* CSS yang Diperbaiki di sini */
+        /* Your existing CSS */
         * {
             margin: 0;
             padding: 0;
@@ -38,10 +38,10 @@
             touch-action: none;
             width: 100%;
             height: 100%;
-            position: absolute; /* Tetapkan posisi absolut */
+            position: absolute;
             top: 0;
             left: 0;
-            z-index: 1; /* Posisikan di bawah UI */
+            z-index: 1;
         }
 
         .ui-container {
@@ -80,7 +80,67 @@
         }
 
         .game-over-screen {
-            display: none; /* Sembunyikan layar game over secara default */
+            display: none;
+        }
+        
+        .login-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            z-index: 20;
+        }
+        
+        .leaderboard-container {
+            position: absolute;
+            right: 20px;
+            top: 100px;
+            width: 250px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 10px;
+            color: white;
+            z-index: 15;
+            backdrop-filter: blur(5px);
+            display: none;
+        }
+
+        .leaderboard-container h3 {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #ffcc00;
+        }
+        
+        .leaderboard-container ol {
+            padding-left: 20px;
+        }
+
+        .leaderboard-container li {
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .leaderboard-container li:last-child {
+            border-bottom: none;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 20px;
+            border-radius: 20px;
+            backdrop-filter: blur(5px);
         }
 
         h1 {
@@ -171,11 +231,25 @@
             <div class="score-container">
                 <h3>High Score: <span id="high-score">0</span></h3>
             </div>
+            <div class="user-info" id="user-info">
+                <span>Not Logged In</span>
+            </div>
+        </div>
+        
+        <div class="leaderboard-container" id="leaderboard-container">
+            <h3>Leaderboard</h3>
+            <ol id="leaderboard-list"></ol>
         </div>
 
         <div id="speed-up-text">SPEED UP!</div>
 
-        <div class="start-screen" id="start-screen">
+        <div class="login-screen" id="login-screen">
+            <h1>Flying Wizard</h1>
+            <p class="instructions">Login to save your score and compete on the leaderboard!</p>
+            <button id="login-button">Login with Discord</button>
+        </div>
+
+        <div class="start-screen" id="start-screen" style="display: none;">
             <h1>Flying Wizard</h1>
             <div class="instructions">
                 <p>Fly the wizard past obstacles!</p>
@@ -204,16 +278,21 @@
         // DOM Elements
         const canvas = document.getElementById('game-canvas');
         const ctx = canvas.getContext('2d');
+        const loginScreen = document.getElementById('login-screen');
         const startScreen = document.getElementById('start-screen');
         const gameOverScreen = document.getElementById('game-over-screen');
         const startButton = document.getElementById('start-button');
         const restartButton = document.getElementById('restart-button');
+        const loginButton = document.getElementById('login-button');
         const scoreElement = document.getElementById('score');
         const highScoreElement = document.getElementById('high-score');
         const finalScoreElement = document.getElementById('final-score');
         const finalHighScoreElement = document.getElementById('final-high-score');
         const speedUpText = document.getElementById('speed-up-text');
         const backgroundMusic = document.getElementById('background-music');
+        const userInfoElement = document.getElementById('user-info');
+        const leaderboardContainer = document.getElementById('leaderboard-container');
+        const leaderboardList = document.getElementById('leaderboard-list');
 
         // Game variables
         let gameRunning = false;
@@ -223,6 +302,7 @@
         let frameCount = 0;
         const wallDistance = 300;
         let nextSpeedIncrease = 10;
+        let loggedInUser = null;
 
         // Controls
         let upPressed = false;
@@ -248,7 +328,7 @@
             wizard.width = wizardWidth;
             wizard.height = wizardHeight;
             console.log("Image 'mage.png' loaded successfully.");
-            if (isBackgroundLoaded) animateStartScreen();
+            if (isBackgroundLoaded) checkLoginStatus();
         };
 
         mageImage.onerror = () => {
@@ -256,19 +336,19 @@
             isMageLoaded = false;
             wizard.width = 60;
             wizard.height = 60;
-            if (isBackgroundLoaded) animateStartScreen();
+            if (isBackgroundLoaded) checkLoginStatus();
         };
 
         backgroundImage.onload = () => {
             isBackgroundLoaded = true;
             console.log("Image 'island.png' loaded successfully.");
-            if (isMageLoaded) animateStartScreen();
+            if (isMageLoaded) checkLoginStatus();
         };
 
         backgroundImage.onerror = () => {
             console.error("Failed to load 'island.png'. Using a red-black gradient background.");
             isBackgroundLoaded = false;
-            if (isMageLoaded) animateStartScreen();
+            if (isMageLoaded) checkLoginStatus();
         };
 
         // Wizard character
@@ -464,7 +544,8 @@
 
             startScreen.style.display = 'none';
             gameOverScreen.style.display = 'none';
-            speedUpText.style.display = 'none'; // Sembunyikan saat memulai
+            speedUpText.style.display = 'none';
+            leaderboardContainer.style.display = 'none';
 
             backgroundMusic.play().catch(e => console.log("Autoplay was prevented."));
 
@@ -474,7 +555,7 @@
         // Game over function
         function gameOver() {
             gameRunning = false;
-            backgroundMusic.currentTime = 0; // Mengatur lagu ke awal
+            backgroundMusic.currentTime = 0;
             backgroundMusic.pause();
 
             if (score > highScore) {
@@ -485,11 +566,86 @@
 
             finalScoreElement.textContent = score;
             finalHighScoreElement.textContent = highScore;
+            
+            // Submit score to backend if logged in
+            if (loggedInUser) {
+                submitScore();
+            }
 
             gameOverScreen.style.display = 'flex';
+            setTimeout(fetchAndDisplayLeaderboard, 1000);
         }
 
+        // Functions for Discord Login and Leaderboard
+        async function checkLoginStatus() {
+            try {
+                const response = await fetch('/api/user');
+                const data = await response.json();
+                if (data.loggedIn) {
+                    loggedInUser = data.user;
+                    userInfoElement.innerHTML = `<span>Logged in as: <b>${loggedInUser.username}</b></span>`;
+                    loginScreen.style.display = 'none';
+                    startScreen.style.display = 'flex';
+                    animateStartScreen(); 
+                } else {
+                    loggedInUser = null;
+                    loginScreen.style.display = 'flex';
+                    startScreen.style.display = 'none';
+                }
+                fetchAndDisplayLeaderboard();
+            } catch (error) {
+                console.error('Failed to check login status:', error);
+                loggedInUser = null;
+                loginScreen.style.display = 'flex';
+                startScreen.style.display = 'none';
+                fetchAndDisplayLeaderboard();
+            }
+        }
+
+        async function submitScore() {
+            if (!loggedInUser) return;
+            try {
+                await fetch('/api/leaderboard', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userId: loggedInUser.id,
+                        username: loggedInUser.username,
+                        score: score
+                    })
+                });
+            } catch (error) {
+                console.error('Failed to submit score:', error);
+            }
+        }
+
+        async function fetchAndDisplayLeaderboard() {
+            try {
+                const response = await fetch('/api/leaderboard');
+                const leaderboardData = await response.json();
+                leaderboardList.innerHTML = ''; // Clear existing list
+                
+                leaderboardData.forEach((entry, index) => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<b>${index + 1}.</b> ${entry.username} - <b>${entry.score}</b>`;
+                    leaderboardList.appendChild(li);
+                });
+                
+                leaderboardContainer.style.display = 'block';
+
+            } catch (error) {
+                console.error('Failed to fetch leaderboard:', error);
+                leaderboardContainer.style.display = 'none';
+            }
+        }
+
+
         // Event listeners
+        loginButton.addEventListener('click', () => {
+            window.location.href = '/login';
+        });
         startButton.addEventListener('click', startGame);
         restartButton.addEventListener('click', startGame);
 
@@ -500,9 +656,14 @@
             if (e.code === 'ArrowDown' || e.key === 's') {
                 downPressed = true;
             }
-            if (!gameRunning && startScreen.style.display !== 'none') {
+            if (!gameRunning && (startScreen.style.display !== 'none' || loginScreen.style.display !== 'none')) {
                 if (e.code === 'ArrowUp' || e.code === 'ArrowDown' || e.key === 'w' || e.key === 's') {
-                    startGame();
+                    if (loggedInUser) {
+                        startGame();
+                    } else {
+                        // Redirect to login if not logged in
+                        window.location.href = '/login';
+                    }
                 }
             }
         });
@@ -528,8 +689,12 @@
                 upPressed = false;
             }
 
-            if (!gameRunning) {
-                startGame();
+            if (!gameRunning && (startScreen.style.display !== 'none' || loginScreen.style.display !== 'none')) {
+                if (loggedInUser) {
+                    startGame();
+                } else {
+                    window.location.href = '/login';
+                }
             }
         }, { passive: false });
         
@@ -539,7 +704,7 @@
         });
 
         function animateStartScreen() {
-            if (!gameRunning && startScreen.style.display !== 'none') {
+            if (!gameRunning && startScreen.style.display !== 'none' && loginScreen.style.display === 'none') {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 drawBackground();
                 wizard.draw();
@@ -559,7 +724,7 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             resizeCanvas();
-            animateStartScreen();
+            checkLoginStatus();
         });
 
         window.addEventListener('resize', resizeCanvas);
