@@ -64,7 +64,7 @@
         }
 
         .screen-overlay, .leaderboard-container {
-            display: none; /* Sembunyikan semua layar overlay secara default */
+            display: none;
         }
         
         .screen-overlay {
@@ -283,6 +283,7 @@
         const leaderboardList = document.getElementById('leaderboard-list');
 
         // Game variables
+        let loggedInUser = null;
         let gameRunning = false;
         let score = 0;
         let highScore = localStorage.getItem('highScore') || 0;
@@ -290,7 +291,6 @@
         let frameCount = 0;
         const wallDistance = 300;
         let nextSpeedIncrease = 10;
-        let loggedInUser = null;
 
         // Controls
         let upPressed = false;
@@ -566,7 +566,7 @@
         async function submitScore() {
             if (!loggedInUser) return;
             try {
-                await fetch('/api/leaderboard', {
+                const res = await fetch('/api/leaderboard', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -577,6 +577,8 @@
                         score: score
                     })
                 });
+                const result = await res.json();
+                console.log('Score submission result:', result); // Tambahkan log ini
             } catch (error) {
                 console.error('Failed to submit score:', error);
             }
@@ -682,7 +684,7 @@
         
         document.addEventListener('DOMContentLoaded', () => {
             resizeCanvas();
-            checkLoginStatus(); // Panggil fungsi ini untuk menginisialisasi tampilan
+            checkLoginStatus();
             animateStartScreen();
         });
 
