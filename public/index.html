@@ -63,13 +63,16 @@
             backdrop-filter: blur(5px);
         }
 
+        .screen-overlay, .leaderboard-container {
+            display: none; /* Sembunyikan semua layar overlay secara default */
+        }
+        
         .screen-overlay {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
@@ -80,10 +83,6 @@
             padding: 20px;
         }
 
-        .game-over-screen {
-            display: none;
-        }
-        
         .leaderboard-container {
             position: absolute;
             right: 20px;
@@ -95,7 +94,6 @@
             color: white;
             z-index: 15;
             backdrop-filter: blur(5px);
-            display: none;
             max-height: 80vh;
             overflow-y: auto;
         }
@@ -318,7 +316,6 @@
             wizard.width = wizardWidth;
             wizard.height = wizardHeight;
             console.log("Image 'mage.png' loaded successfully.");
-            checkInitialState();
         };
 
         mageImage.onerror = () => {
@@ -326,19 +323,16 @@
             isMageLoaded = false;
             wizard.width = 60;
             wizard.height = 60;
-            checkInitialState();
         };
 
         backgroundImage.onload = () => {
             isBackgroundLoaded = true;
             console.log("Image 'island.png' loaded successfully.");
-            checkInitialState();
         };
 
         backgroundImage.onerror = () => {
             console.error("Failed to load 'island.png'. Using a red-black gradient background.");
             isBackgroundLoaded = false;
-            checkInitialState();
         };
 
         // Wizard character
@@ -511,10 +505,13 @@
             nextSpeedIncrease = 10;
             backgroundX = 0;
             wizard.y = canvas.height / 2;
+            
+            // Sembunyikan semua layar overlay
+            loginScreen.style.display = 'none';
             startScreen.style.display = 'none';
             gameOverScreen.style.display = 'none';
-            speedUpText.style.display = 'none';
             leaderboardContainer.style.display = 'none';
+
             backgroundMusic.play().catch(e => console.log("Autoplay was prevented."));
             gameLoop();
         }
@@ -533,6 +530,8 @@
             if (loggedInUser) {
                 submitScore();
             }
+            
+            // Tampilkan layar game over dan leaderboard
             gameOverScreen.style.display = 'flex';
             fetchAndDisplayLeaderboard();
         }
@@ -541,21 +540,25 @@
             try {
                 const response = await fetch('/api/user');
                 const data = await response.json();
+                
+                // Sembunyikan semua layar overlay
+                loginScreen.style.display = 'none';
+                startScreen.style.display = 'none';
+                gameOverScreen.style.display = 'none';
+                leaderboardContainer.style.display = 'none';
+
                 if (data.loggedIn) {
                     loggedInUser = data.user;
                     userInfoElement.innerHTML = `<span>Logged in as: <b>${loggedInUser.username}</b></span>`;
-                    loginScreen.style.display = 'none';
                     startScreen.style.display = 'flex';
                 } else {
                     loggedInUser = null;
                     loginScreen.style.display = 'flex';
-                    startScreen.style.display = 'none';
                 }
             } catch (error) {
                 console.error('Failed to check login status:', error);
                 loggedInUser = null;
                 loginScreen.style.display = 'flex';
-                startScreen.style.display = 'none';
             }
             fetchAndDisplayLeaderboard();
         }
@@ -599,11 +602,22 @@
             }
         }
 
-        function checkInitialState() {
-            if (isMageLoaded && isBackgroundLoaded) {
-                checkLoginStatus();
-                animateStartScreen();
+        function animateStartScreen() {
+            if (!gameRunning) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawBackground();
+                wizard.draw();
+                frameCount++;
+                requestAnimationFrame(animateStartScreen);
             }
+        }
+        
+        function resizeCanvas() {
+            const container = document.querySelector('.game-container');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            wizard.x = canvas.width / 4;
+            wizard.y = canvas.height / 2;
         }
 
         loginButton.addEventListener('click', () => {
@@ -665,31 +679,11 @@
             upPressed = false;
             downPressed = false;
         });
-
-        let animationFrameId;
-        function animateStartScreen() {
-            if (!gameRunning) {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                drawBackground();
-                wizard.draw();
-                frameCount++;
-                animationFrameId = requestAnimationFrame(animateStartScreen);
-            } else {
-                cancelAnimationFrame(animationFrameId);
-            }
-        }
         
-        function resizeCanvas() {
-            const container = document.querySelector('.game-container');
-            canvas.width = container.clientWidth;
-            canvas.height = container.clientHeight;
-            wizard.x = canvas.width / 4;
-            wizard.y = canvas.height / 2;
-        }
-
         document.addEventListener('DOMContentLoaded', () => {
             resizeCanvas();
-            checkInitialState();
+            checkLoginStatus(); // Panggil fungsi ini untuk menginisialisasi tampilan
+            animateStartScreen();
         });
 
         window.addEventListener('resize', resizeCanvas);
