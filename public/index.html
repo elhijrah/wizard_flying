@@ -534,7 +534,7 @@
                 submitScore();
             }
             gameOverScreen.style.display = 'flex';
-            setTimeout(fetchAndDisplayLeaderboard, 1000);
+            fetchAndDisplayLeaderboard();
         }
 
         async function checkLoginStatus() {
@@ -551,14 +551,13 @@
                     loginScreen.style.display = 'flex';
                     startScreen.style.display = 'none';
                 }
-                fetchAndDisplayLeaderboard();
             } catch (error) {
                 console.error('Failed to check login status:', error);
                 loggedInUser = null;
                 loginScreen.style.display = 'flex';
                 startScreen.style.display = 'none';
-                fetchAndDisplayLeaderboard();
             }
+            fetchAndDisplayLeaderboard();
         }
 
         async function submitScore() {
@@ -607,11 +606,19 @@
             }
         }
 
-        // Event listeners
         loginButton.addEventListener('click', () => {
             window.location.href = '/login';
         });
-        startButton.addEventListener('click', startGame);
+
+        startButton.addEventListener('click', () => {
+            if (loggedInUser) {
+                startGame();
+            } else {
+                loginScreen.style.display = 'flex';
+                startScreen.style.display = 'none';
+            }
+        });
+        
         restartButton.addEventListener('click', startGame);
 
         document.addEventListener('keydown', (e) => {
@@ -621,11 +628,9 @@
             if (e.code === 'ArrowDown' || e.key === 's') {
                 downPressed = true;
             }
-            if (!gameRunning && (startScreen.style.display !== 'none' || loginScreen.style.display !== 'none')) {
-                if (loggedInUser) {
+            if (!gameRunning && (startScreen.style.display === 'flex' || gameOverScreen.style.display === 'flex')) {
+                if (e.key === ' ' || e.code === 'Enter') {
                     startGame();
-                } else {
-                    window.location.href = '/login';
                 }
             }
         });
@@ -651,12 +656,8 @@
                 upPressed = false;
             }
 
-            if (!gameRunning && (startScreen.style.display !== 'none' || loginScreen.style.display !== 'none')) {
-                if (loggedInUser) {
-                    startGame();
-                } else {
-                    window.location.href = '/login';
-                }
+            if (!gameRunning && (startScreen.style.display === 'flex' || gameOverScreen.style.display === 'flex')) {
+                startGame();
             }
         }, { passive: false });
         
@@ -666,9 +667,8 @@
         });
 
         let animationFrameId;
-
         function animateStartScreen() {
-            if (!gameRunning && (startScreen.style.display === 'flex' || loginScreen.style.display === 'flex')) {
+            if (!gameRunning) {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 drawBackground();
                 wizard.draw();
