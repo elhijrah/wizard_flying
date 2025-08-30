@@ -11,10 +11,8 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Set up in-memory leaderboard (for demonstration)
 let leaderboard = [];
 
-// Discord OAuth2 strategy
 const scopes = ['identify'];
 
 passport.serializeUser(function(user, done) {
@@ -45,9 +43,8 @@ app.use(passport.initialize());
 app.use(passport.session());
 app.use(express.json());
 
-// BARIS PENTING YANG DITAMBAHKAN
-// Ini memberitahu Express untuk menyajikan semua file statis dari folder proyek.
-app.use(express.static(__dirname));
+// BARIS YANG DIPERBAIKI: Express sekarang tahu untuk menyajikan file dari folder 'public'
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Rute untuk login Discord
 app.get('/login', passport.authenticate('discord'));
@@ -90,9 +87,9 @@ app.post('/api/leaderboard', (req, res) => {
     res.sendStatus(200);
 });
 
-// Rute untuk melayani file utama (index.html)
+// BARIS YANG DIPERBAIKI: Sekarang melayani index.html dari dalam folder 'public'
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.listen(PORT, () => {
