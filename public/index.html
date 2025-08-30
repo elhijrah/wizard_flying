@@ -488,6 +488,7 @@
             loginScreen.style.display = 'none';
             startScreen.style.display = 'none';
             gameOverScreen.style.display = 'none';
+            leaderboardContainer.style.display = 'none';
 
             backgroundMusic.play().catch(e => console.log("Autoplay was prevented."));
             gameLoop();
@@ -524,10 +525,11 @@
                 const response = await fetch('/api/user');
                 const data = await response.json();
                 
-                // Sembunyikan semua layar overlay
+                // Sembunyikan semua layar overlay terlebih dahulu
                 loginScreen.style.display = 'none';
                 startScreen.style.display = 'none';
                 gameOverScreen.style.display = 'none';
+                leaderboardContainer.style.display = 'none';
                 
                 if (data.loggedIn) {
                     loggedInUser = data.user;
@@ -535,14 +537,16 @@
                     startScreen.style.display = 'flex';
                 } else {
                     loggedInUser = null;
+                    userInfoElement.innerHTML = `<span>Not Logged In</span>`;
                     loginScreen.style.display = 'flex';
                 }
             } catch (error) {
                 console.error('Failed to check login status:', error);
                 loggedInUser = null;
+                userInfoElement.innerHTML = `<span>Not Logged In</span>`;
                 loginScreen.style.display = 'flex';
             }
-            // Tampilkan leaderboard saat halaman dimuat
+            
             fetchAndDisplayLeaderboard();
         }
 
