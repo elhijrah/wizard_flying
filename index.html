@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Flying Wizard - Game</title>
     <style>
-        /* Your existing CSS */
         * {
             margin: 0;
             padding: 0;
@@ -249,7 +248,7 @@
             <button id="login-button">Login with Discord</button>
         </div>
 
-        <div class="start-screen" id="start-screen" style="display: none;">
+        <div class="start-screen" id="start-screen">
             <h1>Flying Wizard</h1>
             <div class="instructions">
                 <p>Fly the wizard past obstacles!</p>
@@ -586,7 +585,6 @@
                     userInfoElement.innerHTML = `<span>Logged in as: <b>${loggedInUser.username}</b></span>`;
                     loginScreen.style.display = 'none';
                     startScreen.style.display = 'flex';
-                    animateStartScreen(); 
                 } else {
                     loggedInUser = null;
                     loginScreen.style.display = 'flex';
@@ -657,13 +655,11 @@
                 downPressed = true;
             }
             if (!gameRunning && (startScreen.style.display !== 'none' || loginScreen.style.display !== 'none')) {
-                if (e.code === 'ArrowUp' || e.code === 'ArrowDown' || e.key === 'w' || e.key === 's') {
-                    if (loggedInUser) {
-                        startGame();
-                    } else {
-                        // Redirect to login if not logged in
-                        window.location.href = '/login';
-                    }
+                if (loggedInUser) {
+                    startGame();
+                } else {
+                    // Redirect to login if not logged in
+                    window.location.href = '/login';
                 }
             }
         });
@@ -724,7 +720,7 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             resizeCanvas();
-            checkLoginStatus();
+            checkLoginStatus(); // Initial check
         });
 
         window.addEventListener('resize', resizeCanvas);
