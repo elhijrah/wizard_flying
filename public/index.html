@@ -11,7 +11,6 @@
             box-sizing: border-box;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-
         body {
             background: #000;
             min-height: 100vh;
@@ -20,7 +19,6 @@
             align-items: center;
             overflow: hidden;
         }
-
         .game-container {
             position: relative;
             width: 100vw;
@@ -30,7 +28,6 @@
             align-items: center;
             overflow: hidden;
         }
-
         canvas {
             background: #1a1a1a;
             display: block;
@@ -42,7 +39,6 @@
             left: 0;
             z-index: 1;
         }
-
         .ui-container {
             position: absolute;
             top: 0;
@@ -55,18 +51,15 @@
             z-index: 10;
             text-shadow: 1px 1px 2px #000;
         }
-        
         .score-container {
             background: rgba(0, 0, 0, 0.5);
             padding: 10px 20px;
             border-radius: 20px;
             backdrop-filter: blur(5px);
         }
-
         .screen-overlay, .leaderboard-container {
             display: none;
         }
-        
         .screen-overlay {
             position: absolute;
             top: 0;
@@ -82,7 +75,6 @@
             text-align: center;
             padding: 20px;
         }
-
         .leaderboard-container {
             position: absolute;
             right: 20px;
@@ -97,18 +89,15 @@
             max-height: 80vh;
             overflow-y: auto;
         }
-
         .leaderboard-container h3 {
             text-align: center;
             margin-bottom: 10px;
             color: #ffcc00;
         }
-        
         .leaderboard-container ol {
             padding-left: 20px;
             list-style-type: none;
         }
-
         .leaderboard-container li {
             padding: 8px 0;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -116,11 +105,9 @@
             justify-content: space-between;
             font-size: 1rem;
         }
-
         .leaderboard-container li:last-child {
             border-bottom: none;
         }
-        
         .user-info {
             display: flex;
             align-items: center;
@@ -130,20 +117,17 @@
             border-radius: 20px;
             backdrop-filter: blur(5px);
         }
-
         h1 {
             font-size: clamp(2rem, 8vw, 3rem);
             margin-bottom: 20px;
             text-shadow: 0 0 10px #ff00ff, 0 0 20px #ff00ff;
             color: #fff;
         }
-
         h2 {
             font-size: clamp(1.5rem, 6vw, 2rem);
             margin-bottom: 30px;
             color: #ffcc00;
         }
-
         button {
             padding: 15px 30px;
             font-size: clamp(1rem, 4vw, 1.2rem);
@@ -156,13 +140,11 @@
             transition: all 0.3s ease;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
         }
-
         button:hover {
             transform: translateY(-3px);
             box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
             background: linear-gradient(to right, #ff0080, #ffcc00);
         }
-        
         .instructions {
             max-width: 90%;
             text-align: center;
@@ -170,7 +152,6 @@
             line-height: 1.6;
             font-size: clamp(0.8rem, 3vw, 1rem);
         }
-
         .key {
             display: inline-block;
             padding: 2px 8px;
@@ -178,13 +159,11 @@
             border-radius: 5px;
             font-weight: bold;
         }
-
         .magic-effect {
             position: absolute;
             pointer-events: none;
             z-index: 5;
         }
-
         #speed-up-text {
             position: absolute;
             top: 50%;
@@ -197,7 +176,6 @@
             display: none;
             z-index: 30;
         }
-
         @keyframes fadeOut {
             from {
                 opacity: 1;
@@ -510,7 +488,6 @@
             loginScreen.style.display = 'none';
             startScreen.style.display = 'none';
             gameOverScreen.style.display = 'none';
-            leaderboardContainer.style.display = 'none';
 
             backgroundMusic.play().catch(e => console.log("Autoplay was prevented."));
             gameLoop();
@@ -527,13 +504,19 @@
             }
             finalScoreElement.textContent = score;
             finalHighScoreElement.textContent = highScore;
+
+            // Submit skor baru, lalu perbarui leaderboard
             if (loggedInUser) {
-                submitScore();
+                submitScore().then(() => {
+                    fetchAndDisplayLeaderboard();
+                });
+            } else {
+                // Jika tidak login, tampilkan leaderboard tanpa submit skor
+                fetchAndDisplayLeaderboard();
             }
             
-            // Tampilkan layar game over dan leaderboard
+            // Tampilkan layar game over
             gameOverScreen.style.display = 'flex';
-            fetchAndDisplayLeaderboard();
         }
 
         async function checkLoginStatus() {
@@ -545,8 +528,7 @@
                 loginScreen.style.display = 'none';
                 startScreen.style.display = 'none';
                 gameOverScreen.style.display = 'none';
-                leaderboardContainer.style.display = 'none';
-
+                
                 if (data.loggedIn) {
                     loggedInUser = data.user;
                     userInfoElement.innerHTML = `<span>Logged in as: <b>${loggedInUser.username}</b></span>`;
@@ -560,6 +542,7 @@
                 loggedInUser = null;
                 loginScreen.style.display = 'flex';
             }
+            // Tampilkan leaderboard saat halaman dimuat
             fetchAndDisplayLeaderboard();
         }
 
@@ -571,14 +554,17 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        userId: loggedInUser.id,
-                        username: loggedInUser.username,
-                        score: score
-                    })
+                    body: JSON.stringify({ score: score })
                 });
-                const result = await res.json();
-                console.log('Score submission result:', result); // Tambahkan log ini
+
+                if (!res.ok) {
+                    const errorData = await res.json();
+                    console.error('Failed to submit score:', errorData.error);
+                } else {
+                    const result = await res.json();
+                    console.log('Score submission result:', result);
+                }
+
             } catch (error) {
                 console.error('Failed to submit score:', error);
             }
