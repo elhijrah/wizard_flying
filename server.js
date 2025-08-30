@@ -4,14 +4,13 @@ const passport = require('passport');
 const DiscordStrategy = require('passport-discord').Strategy;
 const axios = require('axios');
 const path = require('path');
+const { kv } = require('@vercel/kv');
 
 // Pastikan .env sudah dimuat di proyek lokal Anda
-// require('dotenv').config();
+require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-let leaderboard = [];
 
 const scopes = ['identify'];
 
@@ -43,20 +42,16 @@ app.use(passport.initialize());
 app.use(passport.session());
 app.use(express.json());
 
-// BARIS YANG DIPERBAIKI: Express sekarang tahu untuk menyajikan file dari folder 'public'
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Rute untuk login Discord
 app.get('/login', passport.authenticate('discord'));
 
-// Rute callback setelah autentikasi
 app.get('/auth/discord/callback', passport.authenticate('discord', {
     failureRedirect: '/'
 }), (req, res) => {
     res.redirect('/');
 });
 
-// Rute untuk mendapatkan status login pengguna
 app.get('/api/user', (req, res) => {
     if (req.isAuthenticated()) {
         res.json({ loggedIn: true, user: req.user });
@@ -65,29 +60,48 @@ app.get('/api/user', (req, res) => {
     }
 });
 
-// Rute untuk mendapatkan dan menyimpan skor
-app.get('/api/leaderboard', (req, res) => {
-    const sortedLeaderboard = leaderboard.sort((a, b) => b.score - a.score).slice(0, 10);
-    res.json(sortedLeaderboard);
-});
+app.get('/api/leaderboard', async (req, res) => {
+    try {
+        const leaderboardData = await kv.zrange('leaderboard', 0, 9, { rev: true, withScores: true });
 
-app.post('/api/leaderboard', (req, res) => {
-    const { userId, username, score } = req.body;
-    
-    const existingEntry = leaderboard.find(entry => entry.userId === userId);
-    
-    if (existingEntry) {
-        if (score > existingEntry.score) {
-            existingEntry.score = score;
-        }
-    } else {
-        leaderboard.push({ userId, username, score });
+        const topScores = await Promise.all(leaderboardData.map(async ([userId, score]) => {
+            const userData = await kv.get(`user:${userId}`);
+            return {
+                userId,
+                username: userData ? userData.username : 'Guest',
+                score: score
+            };
+        }));
+        
+        res.json(topScores);
+    } catch (error) {
+        console.error('Failed to fetch leaderboard:', error);
+        res.status(500).send('Internal Server Error');
     }
-    
-    res.sendStatus(200);
 });
 
-// BARIS YANG DIPERBAIKI: Sekarang melayani index.html dari dalam folder 'public'
+app.post('/api/leaderboard', async (req, res) => {
+    const { userId, username, score } = req.body;
+    try {
+        // Ambil skor lama jika ada
+        const oldScore = await kv.zscore('leaderboard', userId);
+        
+        // Simpan skor baru hanya jika lebih tinggi dari skor lama
+        if (oldScore === null || score > oldScore) {
+            await kv.zadd('leaderboard', {
+                score: score,
+                member: userId
+            });
+            await kv.set(`user:${userId}`, { username: username });
+        }
+        
+        res.sendStatus(200);
+    } catch (error) {
+        console.error('Failed to save score:', error);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
