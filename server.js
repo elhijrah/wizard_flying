@@ -2,20 +2,14 @@ const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
 const DiscordStrategy = require('passport-discord').Strategy;
+const axios = require('axios');
 const path = require('path');
-const RedisStore = require("connect-redis").default;
-const Redis = require("ioredis");
 const { createClient } = require('@vercel/kv');
 
 // Inisialisasi Klien Vercel KV dengan kredensial dari environment variables
 const kv = createClient({
     url: process.env.KV_REST_API_URL,
     token: process.env.KV_REST_API_TOKEN,
-});
-
-// Redis Client untuk Express-Session
-const redisClient = new Redis(process.env.KV_REST_API_URL, {
-    password: process.env.KV_REST_API_TOKEN,
 });
 
 const app = express();
@@ -49,7 +43,6 @@ app.use(session({
     secret: 'mysecret',
     resave: false,
     saveUninitialized: false,
-    store: new RedisStore({ client: redisClient }), // Gunakan KV sebagai session store
     cookie: { maxAge: 24 * 60 * 60 * 1000 } // Sesi berlaku selama 24 jam
 }));
 app.use(passport.initialize());
@@ -64,13 +57,15 @@ app.get('/api/leaderboard', async (req, res) => {
     try {
         let leaderboardData = await kv.get('leaderboard') || [];
         
+        // Memastikan data yang diambil dari KV adalah array yang valid
         if (!Array.isArray(leaderboardData)) {
+            // Hapus kunci yang rusak dan gunakan array kosong
             await kv.del('leaderboard');
             leaderboardData = [];
             console.warn('Leaderboard data in KV was not an array. Resetting and deleting the key.');
         }
 
-        // PERBAIKAN: Mengambil 10 teratas, bukan hanya 3
+        // Urutkan berdasarkan skor tertinggi dan ambil 10 teratas
         const sortedLeaderboard = leaderboardData
             .sort((a, b) => b.score - a.score)
             .slice(0, 10);
@@ -93,23 +88,29 @@ app.post('/api/leaderboard', async (req, res) => {
     try {
         let currentLeaderboard = await kv.get('leaderboard') || [];
         
+        // Memastikan data yang diambil adalah array yang valid
         if (!Array.isArray(currentLeaderboard)) {
+            // Hapus kunci yang rusak dan gunakan array kosong
             await kv.del('leaderboard');
             currentLeaderboard = [];
             console.warn('Leaderboard data in KV was not an array. Resetting and deleting the key.');
         }
 
+        // Cari entri yang sudah ada untuk user ini
         const existingEntryIndex = currentLeaderboard.findIndex(entry => entry.userId === userId);
 
         if (existingEntryIndex !== -1) {
+            // Jika user sudah ada, update skor hanya jika lebih tinggi
             if (score > currentLeaderboard[existingEntryIndex].score) {
                 currentLeaderboard[existingEntryIndex].score = score;
-                currentLeaderboard[existingEntryIndex].username = username;
+                currentLeaderboard[existingEntryIndex].username = username; // Update username jika berubah
             }
         } else {
+            // Jika user baru, tambahkan ke leaderboard
             currentLeaderboard.push({ userId, username, score });
         }
         
+        // Simpan kembali ke KV
         await kv.set('leaderboard', currentLeaderboard);
         
         res.sendStatus(200);
