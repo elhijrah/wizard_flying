@@ -5,13 +5,17 @@ const DiscordStrategy = require('passport-discord').Strategy;
 const path = require('path');
 const RedisStore = require("connect-redis").default;
 const Redis = require("ioredis");
+const { createClient } = require('@vercel/kv');
 
-// Inisialisasi Klien Redis untuk Express-Session & Leaderboard
+// Inisialisasi Klien Vercel KV dengan kredensial dari environment variables
+const kv = createClient({
+    url: process.env.KV_REST_API_URL,
+    token: process.env.KV_REST_API_TOKEN,
+});
+
+// Redis Client untuk Express-Session
 const redisClient = new Redis(process.env.KV_REST_API_URL, {
     password: process.env.KV_REST_API_TOKEN,
-    tls: {
-      rejectUnauthorized: false
-    }
 });
 
 const app = express();
@@ -45,8 +49,8 @@ app.use(session({
     secret: 'mysecret',
     resave: false,
     saveUninitialized: false,
-    store: new RedisStore({ client: redisClient }), 
-    cookie: { maxAge: 24 * 60 * 60 * 1000 } 
+    store: new RedisStore({ client: redisClient }), // Gunakan KV sebagai session store
+    cookie: { maxAge: 24 * 60 * 60 * 1000 } // Sesi berlaku selama 24 jam
 }));
 app.use(passport.initialize());
 app.use(passport.session());
@@ -55,41 +59,30 @@ app.use(express.json());
 // Melayani file statis dari direktori 'public'
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Rute untuk mendapatkan leaderboard dari Redis Sorted Set
+// Rute untuk mendapatkan leaderboard dari Vercel KV
 app.get('/api/leaderboard', async (req, res) => {
     try {
-        // Mengambil 10 user teratas dari Sorted Set
-        const topUsersWithScores = await redisClient.zrevrange('leaderboard', 0, 9, 'withscores');
+        let leaderboardData = await kv.get('leaderboard') || [];
         
-        const topUserIds = [];
-        const topScores = {};
-
-        // Pisahkan user ID dan skor
-        for (let i = 0; i < topUsersWithScores.length; i += 2) {
-            topUserIds.push(topUsersWithScores[i]);
-            topScores[topUsersWithScores[i]] = parseInt(topUsersWithScores[i+1]);
+        if (!Array.isArray(leaderboardData)) {
+            await kv.del('leaderboard');
+            leaderboardData = [];
+            console.warn('Leaderboard data in KV was not an array. Resetting and deleting the key.');
         }
 
-        // Ambil username untuk user ID yang ditemukan
-        const usernames = await redisClient.hmget('usernames', ...topUserIds);
-        
-        const leaderboard = [];
-        for (let i = 0; i < topUserIds.length; i++) {
-            leaderboard.push({
-                userId: topUserIds[i],
-                username: usernames[i] || 'Anonymous', // Gunakan 'Anonymous' jika username tidak ditemukan
-                score: topScores[topUserIds[i]]
-            });
-        }
+        // PERBAIKAN: Mengambil 10 teratas, bukan hanya 3
+        const sortedLeaderboard = leaderboardData
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 10);
             
-        res.json(leaderboard);
+        res.json(sortedLeaderboard);
     } catch (error) {
-        console.error('Failed to fetch leaderboard from Redis:', error);
+        console.error('Failed to fetch leaderboard from KV:', error);
         res.status(500).send('Error fetching leaderboard');
     }
 });
 
-// Rute untuk mengirimkan skor ke Redis
+// Rute untuk mengirimkan skor ke Vercel KV
 app.post('/api/leaderboard', async (req, res) => {
     if (!req.isAuthenticated()) {
         return res.status(401).send('Unauthorized');
@@ -97,63 +90,42 @@ app.post('/api/leaderboard', async (req, res) => {
 
     const { userId, username, score } = req.body;
 
-    if (!userId || !username || typeof score !== 'number') {
-        return res.status(400).send('Invalid data provided.');
-    }
-
     try {
-        // Menggunakan ZADD untuk menyimpan skor. ZADD akan otomatis memperbarui skor jika lebih tinggi
-        await redisClient.zadd('leaderboard', 'GT', score, userId);
+        let currentLeaderboard = await kv.get('leaderboard') || [];
         
-        // Simpan username di Hash Map. HSET akan otomatis memperbarui username
-        await redisClient.hset('usernames', userId, username);
+        if (!Array.isArray(currentLeaderboard)) {
+            await kv.del('leaderboard');
+            currentLeaderboard = [];
+            console.warn('Leaderboard data in KV was not an array. Resetting and deleting the key.');
+        }
+
+        const existingEntryIndex = currentLeaderboard.findIndex(entry => entry.userId === userId);
+
+        if (existingEntryIndex !== -1) {
+            if (score > currentLeaderboard[existingEntryIndex].score) {
+                currentLeaderboard[existingEntryIndex].score = score;
+                currentLeaderboard[existingEntryIndex].username = username;
+            }
+        } else {
+            currentLeaderboard.push({ userId, username, score });
+        }
+        
+        await kv.set('leaderboard', currentLeaderboard);
         
         res.sendStatus(200);
     } catch (error) {
-        console.error('Failed to save score to Redis:', error);
+        console.error('Failed to save score to KV:', error);
         res.status(500).send('Error saving score');
     }
 });
 
-// Rute login dan autentikasi dengan penanganan kesalahan yang ditingkatkan
+// Rute login dan autentikasi
 app.get('/login', passport.authenticate('discord'));
 
-app.get('/auth/discord/callback', (req, res, next) => {
-    passport.authenticate('discord', (err, user, info) => {
-        if (err) {
-            console.error('Discord authentication error:', err);
-            return res.redirect('/login-error?message=' + encodeURIComponent(err.message || 'Authentication failed.'));
-        }
-        if (!user) {
-            console.error('Discord authentication failed. No user found.');
-            return res.redirect('/login-error?message=' + encodeURIComponent('Authentication failed. No user found.'));
-        }
-        
-        req.logIn(user, (err) => {
-            if (err) {
-                console.error('Session login error:', err);
-                return res.redirect('/login-error?message=' + encodeURIComponent(err.message || 'Session login failed.'));
-            }
-            res.redirect('/?authenticated=true');
-        });
-    })(req, res, next);
-});
-
-// Rute untuk menampilkan pesan error login
-app.get('/login-error', (req, res) => {
-    const errorMessage = req.query.message || 'Login failed. Please try again.';
-    res.send(`
-        <html>
-            <head><title>Login Error</title></head>
-            <body style="background: #1a1a1a; color: white; text-align: center; font-family: sans-serif; padding-top: 50px;">
-                <h1>Login Gagal!</h1>
-                <p>Ada yang salah saat mencoba login dengan Discord.</p>
-                <p><strong>Pesan Kesalahan:</strong> ${errorMessage}</p>
-                <p>Silakan kembali ke halaman utama dan coba lagi.</p>
-                <a href="/" style="color: #ffcc00;">Kembali ke Game</a>
-            </body>
-        </html>
-    `);
+app.get('/auth/discord/callback', passport.authenticate('discord', {
+    failureRedirect: '/'
+}), (req, res) => {
+    res.redirect('/?authenticated=true');
 });
 
 app.get('/api/user', (req, res) => {
