@@ -58,23 +58,26 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Rute untuk mendapatkan leaderboard dari Redis Sorted Set
 app.get('/api/leaderboard', async (req, res) => {
     try {
+        // Mengambil 10 user teratas dari Sorted Set
         const topUsersWithScores = await redisClient.zrevrange('leaderboard', 0, 9, 'withscores');
         
         const topUserIds = [];
         const topScores = {};
 
+        // Pisahkan user ID dan skor
         for (let i = 0; i < topUsersWithScores.length; i += 2) {
             topUserIds.push(topUsersWithScores[i]);
             topScores[topUsersWithScores[i]] = parseInt(topUsersWithScores[i+1]);
         }
 
+        // Ambil username untuk user ID yang ditemukan
         const usernames = await redisClient.hmget('usernames', ...topUserIds);
         
         const leaderboard = [];
         for (let i = 0; i < topUserIds.length; i++) {
             leaderboard.push({
                 userId: topUserIds[i],
-                username: usernames[i] || 'Anonymous',
+                username: usernames[i] || 'Anonymous', // Gunakan 'Anonymous' jika username tidak ditemukan
                 score: topScores[topUserIds[i]]
             });
         }
@@ -99,7 +102,10 @@ app.post('/api/leaderboard', async (req, res) => {
     }
 
     try {
+        // Menggunakan ZADD untuk menyimpan skor. ZADD akan otomatis memperbarui skor jika lebih tinggi
         await redisClient.zadd('leaderboard', 'GT', score, userId);
+        
+        // Simpan username di Hash Map. HSET akan otomatis memperbarui username
         await redisClient.hset('usernames', userId, username);
         
         res.sendStatus(200);
